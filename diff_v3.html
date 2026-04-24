@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diff Tool — テキスト差分比較 (究極版・表示切替対応)</title>
+<style>
+  /* ── 変数定義 ── */
+  :root {
+    --bg: #0f1117;
+    --bg2: #1a1d27;
+    --bg3: #22263a;
+    --border: #2e3350;
+    --text: #e4e8f5;
+    --text2: #8b92b3;
+    --accent: #4e7fff;
+    --del-bg: rgba(255,80,80,0.18);
+    --del-fg: #ff6b6b;
+    --ins-bg: rgba(60,220,120,0.16);
+    --ins-fg: #42d98a;
+    --btn: #4e7fff;
+    --btn-hover: #6b96ff;
+    --radius: 8px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --font-mono: 'Courier New', 'Consolas', 'Menlo', monospace;
+    --font-ui: 'Segoe UI', 'Noto Sans JP', sans-serif;
+  }
+  
+  /* ライトモード */
+  body.light {
+    --bg: #f5f6fa;
+    --bg2: #ffffff;
+    --bg3: #eceef5;
+    --border: #d0d4e4;
+    --text: #1a1d2e;
+    --text2: #6b7299;
+    --accent: #3a6be8;
+    --del-bg: rgba(220,50,50,0.12);
+    --del-fg: #c0392b;
+    --ins-bg: rgba(30,180,90,0.12);
+    --ins-fg: #1a8a4a;
+    --btn: #3a6be8;
+    --btn-hover: #2255cc;
+  }
+  
+  /* モノクロモード */
+  body.mono {
+    --del-bg: rgba(160,160,160,0.22);
+    --del-fg: #888;
+    --ins-bg: rgba(180,180,180,0.18);
+    --ins-fg: #aaa;
+  }
+  body.light.mono {
+    --del-bg: rgba(100,100,100,0.15);
+    --del-fg: #555;
+    --ins-bg: rgba(130,130,130,0.12);
+    --ins-fg: #666;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 14px; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    transition: background 0.25s, color 0.25s;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .logo {
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--text);
+  }
+  .logo span { color: var(--accent); }
+  .header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center;}
+
+  /* ── Buttons ── */
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: var(--radius);
+    font-family: var(--font-ui);
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 7px 14px;
+    transition: background 0.15s, transform 0.1s;
+  }
+  button:active:not(:disabled) { transform: scale(0.97); }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  
+  .btn-primary { background: var(--btn); color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: var(--btn-hover); }
+  
+  .btn-ghost {
+    background: var(--bg3);
+    color: var(--text2);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover:not(:disabled) { background: var(--border); color: var(--text); }
+  
+  .btn-compare {
+    background: linear-gradient(135deg, #4e7fff, #7b5fff);
+    color: #fff;
+    font-size: 1rem;
+    padding: 10px 32px;
+    border-radius: var(--radius);
+    box-shadow: 0 2px 16px rgba(78,127,255,0.3);
+    letter-spacing: 0.06em;
+  }
+  .btn-compare:hover:not(:disabled) { opacity: 0.9; box-shadow: 0 4px 24px rgba(78,127,255,0.45); }
+  .btn-toggle-view { background: var(--accent); color: #fff; }
+
+  /* ── Input Section ── */
+  #input-section {
+    display: flex;
+    gap: 0;
+    padding: 20px 24px 0;
+    flex-direction: column;
+  }
+  .input-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .input-panel { display: flex; flex-direction: column; gap: 6px; }
+  .panel-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text2);
+    padding-left: 2px;
+  }
+  .panel-label.left { color: var(--del-fg); }
+  .panel-label.right { color: var(--ins-fg); }
+  
+  textarea {
+    width: 100%;
+    height: 180px;
+    padding: 12px 14px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.88rem;
+    line-height: 1.7;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.15s, background 0.25s, color 0.25s;
+  }
+  textarea:focus { border-color: var(--accent); }
+  
+  .compare-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px 0;
+    gap: 12px;
+  }
+
+  /* ── Result Section ── */
+  #result-section {
+    padding: 0 24px 24px;
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .result-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text2);
+  }
+  .legend {
+    display: flex;
+    gap: 14px;
+    font-size: 0.78rem;
+    color: var(--text2);
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .ld-del { background: var(--del-fg); }
+  .ld-ins { background: var(--ins-fg); }
+
+  /* ── 差分装飾 (del/ins) ── */
+  del {
+    background: var(--del-bg);
+    color: var(--del-fg);
+    text-decoration: line-through;
+    border-radius: 3px;
+    padding: 1px 2px;
+  }
+  ins {
+    background: var(--ins-bg);
+    color: var(--ins-fg);
+    text-decoration: none;
+    border-radius: 3px;
+    padding: 1px 2px;
+    font-weight: bold;
+  }
+  .nl-symbol { opacity: 0.5; font-weight: normal; margin: 0 2px; }
+
+  /* ── 同期型テーブル (左右分割表示) ── */
+  .diff-sync-wrapper {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .diff-sync-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  .diff-sync-table thead { background: var(--bg3); }
+  .diff-sync-table th {
+    padding: 10px 14px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
+    width: 50%;
+  }
+  .diff-sync-table th.left-col { border-right: 1px solid var(--border); color: var(--del-fg); }
+  .diff-sync-table th.right-col { color: var(--ins-fg); }
+  .diff-sync-table td {
+    padding: 10px 14px;
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    line-height: 1.8;
+    vertical-align: top;
+    border-bottom: none; /* 横罫線なし */
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .diff-sync-table td:first-child { border-right: 1px solid var(--border); }
+
+  /* ── インライン統合表示 ── */
+  .diff-inline-wrapper {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .diff-inline-header {
+    padding: 10px 14px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
+  }
+  .diff-inline-content {
+    padding: 15px 20px;
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--text);
+  }
+
+  /* ── Stats ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 8px;
+  }
+  .stats-panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 0.8rem;
+    color: var(--text2);
+  }
+  .stat-item { display: flex; gap: 5px; align-items: baseline; }
+  .stat-label { color: var(--text2); }
+  .stat-value { font-weight: 700; color: var(--text); font-family: var(--font-mono); }
+
+  /* ── Print mode / Responsive ── */
+  body.print-mode #input-section { display: none !important; }
+  body.print-mode #result-section { display: flex !important; }
+
+  @media (max-width: 700px) {
+    .input-row, .stats-row { grid-template-columns: 1fr; }
+    header { padding: 12px 14px; }
+    #input-section, #result-section { padding-left: 14px; padding-right: 14px; }
+  }
+
+  @media print {
+    body { background: #fff; color: #000; }
+    header, #input-section, .header-actions, .result-header .btn-ghost { display: none !important; }
+    #result-section { display: flex !important; padding: 0; }
+    .diff-sync-wrapper, .diff-sync-table, .diff-sync-table th, .diff-sync-table td, 
+    .diff-inline-wrapper, .diff-inline-header, .stats-panel { 
+      border-color: #ccc; background: #fff !important; color: #000 !important;
+    }
+    del { background: #fdd !important; color: #900 !important; }
+    ins { background: #dfd !important; color: #060 !important; }
+    .nl-symbol { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">diff<span>.</span>tool</div>
+  <div class="header-actions">
+    <button class="btn-ghost" id="btn-view-toggle" onclick="toggleViewMode()">👀 左右分割</button>
+    <span style="color:var(--border);">|</span>
+    <button class="btn-ghost" id="btn-darkmode" onclick="toggleLight()">☀ ライト</button>
+    <button class="btn-ghost" id="btn-theme" onclick="toggleMono()">モノクロ</button>
+    <button class="btn-ghost" id="btn-print-toggle" onclick="togglePrintMode()">結果のみ</button>
+    <button class="btn-ghost" onclick="window.print()">🖨 印刷</button>
+  </div>
+</header>
+
+<div id="input-section">
+  <div class="input-row">
+    <div class="input-panel">
+      <div class="panel-label left">▌ 変更前 (Left)</div>
+      <textarea id="text-left" placeholder="比較元のテキストをここに貼り付けてください…" spellcheck="false"></textarea>
+    </div>
+    <div class="input-panel">
+      <div class="panel-label right">▌ 変更後 (Right)</div>
+      <textarea id="text-right" placeholder="比較先のテキストをここに貼り付けてください…" spellcheck="false"></textarea>
+    </div>
+  </div>
+  <div class="compare-row">
+    <button class="btn-ghost" onclick="clearAll()">クリア</button>
+    <button class="btn-compare" id="btnCompare" onclick="runDiff()">▶ 比較する</button>
+    <button class="btn-ghost" onclick="loadSample()">サンプル</button>
+  </div>
+</div>
+
+<div id="result-section">
+  <div class="result-header">
+    <div class="result-title">── 差分結果</div>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-dot ld-del"></span>削除</div>
+      <div class="legend-item"><span class="legend-dot ld-ins"></span>追加</div>
+      <button class="btn-ghost" style="font-size:0.78rem;padding:4px 10px; margin-left: 10px;" onclick="hideResult()">✕ 閉じる</button>
+    </div>
+  </div>
+  
+  <div id="view-side" class="diff-sync-wrapper">
+    <table class="diff-sync-table">
+      <thead>
+        <tr>
+          <th class="left-col">変更前 (Left)</th>
+          <th class="right-col">変更後 (Right)</th>
+        </tr>
+      </thead>
+      <tbody id="diff-tbody"></tbody>
+    </table>
+  </div>
+
+  <div id="view-inline" class="diff-inline-wrapper" style="display: none;">
+    <div class="diff-inline-header">変更前後の統合プレビュー</div>
+    <div class="diff-inline-content" id="diff-inline-content"></div>
+  </div>
+  
+  <div class="stats-row">
+    <div class="stats-panel" id="stats-left"></div>
+    <div class="stats-panel" id="stats-right"></div>
+  </div>
+</div>
+
+<script>
+// ──────────────────────────────────────────────────────────────────
+// UI操作系 Utilities
+// ──────────────────────────────────────────────────────────────────
+let currentViewMode = 'side';
+
+function toggleViewMode() {
+  currentViewMode = (currentViewMode === 'side') ? 'inline' : 'side';
+  document.getElementById('view-side').style.display = (currentViewMode === 'side') ? 'block' : 'none';
+  document.getElementById('view-inline').style.display = (currentViewMode === 'inline') ? 'block' : 'none';
+  
+  const btn = document.getElementById('btn-view-toggle');
+  btn.textContent = (currentViewMode === 'side') ? '👀 左右分割' : '👀 統合表示';
+  btn.style.background = (currentViewMode === 'inline') ? 'var(--accent)' : 'var(--bg3)';
+  btn.style.color = (currentViewMode === 'inline') ? '#fff' : 'var(--text2)';
+}
+
+function toggleLight() {
+  const isLight = document.body.classList.toggle('light');
+  document.getElementById('btn-darkmode').textContent = isLight ? '🌙 ダーク' : '☀ ライト';
+}
+
+function toggleMono() {
+  document.body.classList.toggle('mono');
+  document.getElementById('btn-theme').textContent =
+    document.body.classList.contains('mono') ? 'カラー切替' : 'モノクロ';
+}
+
+function togglePrintMode() {
+  const isPrint = document.body.classList.toggle('print-mode');
+  document.getElementById('btn-print-toggle').textContent = isPrint ? '入力表示' : '結果のみ';
+}
+
+function clearAll() {
+  document.getElementById('text-left').value = '';
+  document.getElementById('text-right').value = '';
+  hideResult();
+}
+
+function hideResult() {
+  document.getElementById('result-section').style.display = 'none';
+}
+
+function loadSample() {
+  document.getElementById('text-left').value =
+`まわれまわれ、
+いい資本。
+
+βは、未完成の「わからないもの」を
+指す言葉です。
+
+未来を見通せることはない。常にわからない。
+けれど、そのわからなさの中にあっても
+「今ここにある何かが未来に必要だ」という光を
+見出すことがある。
+私たちは、その光を信じます。`;
+  document.getElementById('text-right').value =
+`まわれまわれ、
+いい資本。
+
+β は、未完成の「わからないもの」を
+意味する言葉です。
+
+未来を見通すことはできない。常にわからない。
+けれど、そのわからなさの中にあっても、
+「今ここにある何かが未来に必要だ」という光を
+見出すことがある。
+私たちは、その光を信じる。`;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// スマート段落結合 (PDFの不自然な改行を自動修正)
+// ──────────────────────────────────────────────────────────────────
+function formatJapaneseText(text) {
+  let lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  let result = '';
+  
+  for (let i = 0; i < lines.length; i++) {
+      let line = lines[i];
+      let trimmed = line.trimEnd();
+      
+      result += line; 
+      
+      if (i < lines.length - 1) {
+          let nextLine = lines[i+1];
+          let isNextBlank = (nextLine.trim() === '');
+          let isCurrentBlank = (trimmed === '');
+          let endsWithPunc = /[。．？！\.\?\!」』）】\]\)]$/.test(trimmed);
+          
+          if (isCurrentBlank || isNextBlank || endsWithPunc) {
+              result += '\n';
+          }
+      }
+  }
+  return result;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// カウント処理・Stats描画
+// ──────────────────────────────────────────────────────────────────
+function countChars(text) {
+  const words = (text.match(/\S+/g) || []).length;
+  const count3 = text.replace(/\r/g, '').length;
+  const count2 = text.replace(/[\r\n]/g, '').length;
+  const count1 = text.replace(/\s/g, '').length;
+  return { c1: count1, c2: count2, c3: count3, w: words };
+}
+
+function renderStats(id, text, label) {
+  const stats = countChars(text);
+  document.getElementById(id).innerHTML =
+    `<div class="stat-item"><span class="stat-label" style="color:var(--text); font-weight:bold; margin-bottom:4px;">▌ ${label}</span></div>` +
+    `<div class="stat-item"><span class="stat-label">文字数:</span><span class="stat-value">${stats.c1.toLocaleString()}</span></div>` +
+    `<div class="stat-item"><span class="stat-label">空白数:</span><span class="stat-value">${(stats.c2 - stats.c1).toLocaleString()}</span></div>` +
+    `<div class="stat-item"><span class="stat-label">空白込み:</span><span class="stat-value">${stats.c2.toLocaleString()}</span></div>` +
+    `<div class="stat-item"><span class="stat-label">改行数:</span><span class="stat-value">${(stats.c3 - stats.c2).toLocaleString()}</span></div>` +
+    `<div class="stat-item"><span class="stat-label">単語数:</span><span class="stat-value">${stats.w.toLocaleString()}</span></div>`;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// 差分コアアルゴリズム系
+// ──────────────────────────────────────────────────────────────────
+function escapeHTML(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+}
+
+function tokenize(text) {
+  const escaped = escapeHTML(text).replace(/\n/g, '<$>');
+  const regex = /([a-zA-Z0-9]+|<\$>|&#?\w+;|[\s\S])/g;
+  const tokens = [];
+  let match;
+  while ((match = regex.exec(escaped)) !== null) tokens.push(match[1]);
+  return tokens;
+}
+
+function myersDiff(a, b) {
+  const N = a.length, M = b.length, max = N + M;
+  const v = { 1: 0 }, trace = [];
+
+  for (let d = 0; d <= max; d++) {
+      trace.push(Object.assign({}, v));
+      for (let k = -d; k <= d; k += 2) {
+          let x = (k === -d || (k !== d && v[k - 1] < v[k + 1])) ? v[k + 1] : v[k - 1] + 1;
+          let y = x - k;
+          while (x < N && y < M && a[x] === b[y]) { x++; y++; }
+          v[k] = x;
+          if (x >= N && y >= M) return buildDiffResult(a, b, trace);
+      }
+  }
+  return [];
+}
+
+function buildDiffResult(a, b, trace) {
+  let x = a.length, y = b.length;
+  const result = [];
+  for (let d = trace.length - 1; d >= 0; d--) {
+      const v = trace[d];
+      const k = x - y;
+      const prev_k = (k === -d || (k !== d && v[k - 1] < v[k + 1])) ? k + 1 : k - 1;
+      const prev_x = v[prev_k];
+      const prev_y = prev_x - prev_k;
+      
+      while (x > prev_x && y > prev_y) {
+          result.unshift({ type: 'keep', value: a[x - 1] });
+          x--; y--;
+      }
+      if (d > 0) {
+          if (x === prev_x) {
+              result.unshift({ type: 'insert', value: b[prev_y] });
+          } else {
+              result.unshift({ type: 'delete', value: a[prev_x] });
+          }
+      }
+      x = prev_x; y = prev_y;
+  }
+  return result;
+}
+
+const isSpaceOnly = (str) => /^[ \t\u3000\u00A0]+$/.test(str);
+
+// ──────────────────────────────────────────────────────────────────
+// HTMLジェネレーター: 左右同期用
+// ──────────────────────────────────────────────────────────────────
+function buildSyncHTML(diffResult) {
+  let htmlA = '', htmlB = '';
+
+  for (const op of diffResult) {
+      if (op.type === 'keep') {
+          htmlA += op.value; htmlB += op.value;
+      } else if (op.type === 'delete') {
+          htmlA += isSpaceOnly(op.value) ? op.value : '<del>' + op.value + '</del>';
+          if (op.value === '<$>') htmlB += '<$>'; 
+      } else if (op.type === 'insert') {
+          htmlB += isSpaceOnly(op.value) ? op.value : '<ins>' + op.value + '</ins>';
+          if (op.value === '<$>') htmlA += '<$>'; 
+      }
+  }
+
+  let prevA = '';
+  while (htmlA !== prevA) {
+      prevA = htmlA;
+      htmlA = htmlA.replace(/(<del>[^<>]*)<\$>((?:[^<>]|<\$>)*<\/del>)/g, '$1</del><$><del>$2');
+  }
+  htmlA = htmlA.replace(/<del><\/del>/g, '');
+
+  let prevB = '';
+  while (htmlB !== prevB) {
+      prevB = htmlB;
+      htmlB = htmlB.replace(/(<ins>[^<>]*)<\$>((?:[^<>]|<\$>)*<\/ins>)/g, '$1</ins><$><ins>$2');
+  }
+  htmlB = htmlB.replace(/<ins><\/ins>/g, '');
+
+  return { htmlA, htmlB };
+}
+
+// ──────────────────────────────────────────────────────────────────
+// HTMLジェネレーター: インライン統合用
+// ──────────────────────────────────────────────────────────────────
+function buildInlineHTML(diffResult) {
+  let html = '';
+  for (const op of diffResult) {
+      let val = op.value;
+      if (op.type === 'keep') {
+          html += (val === '<$>') ? '\n' : val;
+      } 
+      else if (op.type === 'insert') {
+          if (isSpaceOnly(val)) {
+              html += val;
+          } else if (val === '<$>') {
+              html += '<ins><span class="nl-symbol">&crarr;</span></ins>\n';
+          } else {
+              html += '<ins>' + val + '</ins>';
+          }
+      } 
+      else if (op.type === 'delete') {
+          if (isSpaceOnly(val)) {
+              html += val;
+          } else if (val === '<$>') {
+              html += '<del><span class="nl-symbol">&crarr;</span></del>';
+          } else {
+              html += '<del>' + val + '</del>';
+          }
+      }
+  }
+  return html;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Main execution runner
+// ──────────────────────────────────────────────────────────────────
+function runDiff() {
+  const textA = document.getElementById('text-left').value;
+  const textB = document.getElementById('text-right').value;
+  const btn = document.getElementById('btnCompare');
+  const tbody = document.getElementById('diff-tbody');
+  const inlineContent = document.getElementById('diff-inline-content');
+  const resultSection = document.getElementById('result-section');
+
+  if (textA.length > 50000 || textB.length > 50000) {
+      alert('文字数上限（各50,000文字）を超えています。');
+      return;
+  }
+
+  btn.innerText = "処理中...";
+  btn.disabled = true;
+
+  setTimeout(() => {
+      try {
+          // スマート結合 & NFKC正規化
+          const formattedA = formatJapaneseText(textA).normalize('NFKC');
+          const formattedB = formatJapaneseText(textB).normalize('NFKC');
+
+          // トークン化 & 差分計算
+          const tokensA = tokenize(formattedA);
+          const tokensB = tokenize(formattedB);
+          const diffOperations = myersDiff(tokensA, tokensB);
+
+          // 1. 左右同期HTMLの反映
+          const { htmlA, htmlB } = buildSyncHTML(diffOperations);
+          const rowsA = htmlA.split('<$>');
+          const rowsB = htmlB.split('<$>');
+          let tbodyHtml = '';
+          for (let i = 0; i < rowsA.length; i++) {
+              tbodyHtml += `<tr><td>${rowsA[i] || ''}</td><td>${rowsB[i] || ''}</td></tr>`;
+          }
+          tbody.innerHTML = tbodyHtml;
+
+          // 2. インライン統合HTMLの反映
+          inlineContent.innerHTML = buildInlineHTML(diffOperations);
+          
+          // Stats更新
+          renderStats('stats-left', textA, '変更前 (Left)');
+          renderStats('stats-right', textB, '変更後 (Right)');
+
+          // 結果セクション表示
+          resultSection.style.display = 'flex';
+          resultSection.scrollIntoView({behavior:'smooth', block:'start'});
+
+      } catch (e) {
+          alert("処理中にエラーが発生しました: " + e.message);
+      } finally {
+          btn.innerText = "▶ 比較する";
+          btn.disabled = false;
+      }
+  }, 50);
+}
+
+// Ctrl+Enter で比較実行
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runDiff();
+});
+</script>
+</body>
+</html>
