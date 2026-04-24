@@ -36,5 +36,5 @@ https://reitovc.github.io/diff/diff_v3.html
 
 **Original Software:**
 * difff《ﾃﾞｭﾌﾌ》 (https://difff.jp/)
-* Copyright (c) 2012-2015, Yuki Naito
+* Copyright (c) 2012-2026, Yuki Naito
 * Distributed under the Modified BSD License.
